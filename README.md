@@ -5,7 +5,7 @@ A [bloomd](https://github.com/armon/bloomd) client powered by [Go](http://golang
 ## Installation
 
 ```bash
-go get github.com/geetarista/go-bloomd/bloomd
+go get github.com/jalavosus/go-bloomd/bloomd
 ```
 
 ## Testing
