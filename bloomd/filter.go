@@ -31,25 +31,31 @@ func (f *Filter) getKey(key string) string {
 // Adds a new key to the filter. Returns True/False if the key was added
 func (f *Filter) Set(key string) (bool, error) {
 	cmd := "s " + f.Name + " " + f.getKey(key)
+
 	resp, err := f.Conn.SendAndReceive(cmd)
 	if err != nil {
 		return false, err
 	}
+
 	if resp == "Yes" || resp == "No" {
 		return resp == "Yes", nil
 	}
+
 	return false, errInvalidResponse(resp)
 }
 
 func (f *Filter) groupCommand(kind string, keys []string) (rs []bool, e error) {
 	cmd := kind + " " + f.Name
+
 	for _, key := range keys {
 		cmd = cmd + " " + f.getKey(key)
 	}
+
 	resp, e := f.Conn.SendAndReceive(cmd)
 	if e != nil {
 		return rs, &BloomdError{ErrorString: e.Error()}
 	}
+
 	if strings.HasPrefix(resp, "Yes") || strings.HasPrefix(resp, "No") {
 		split := strings.Split(resp, " ")
 		for _, res := range split {
@@ -59,9 +65,28 @@ func (f *Filter) groupCommand(kind string, keys []string) (rs []bool, e error) {
 	return rs, nil
 }
 
+func (f *Filter) singleCommand(kind string, key string) (rs bool, err error) {
+	cmd := kind + " " + f.Name + " " + f.getKey(key)
+
+	resp, err := f.Conn.SendAndReceive(cmd)
+	if err != nil {
+		return rs, &BloomdError{ErrorString: e.Error()}
+	}
+
+	if strings.HasPrefix(resp, "Yes") || strings.HasPrefix(resp, "No") {
+		rs = resp == "Yes"
+	}
+
+	return rs, nil
+}
+
 // Performs a bulk set command, adds multiple keys in the filter
 func (f *Filter) Bulk(keys []string) (responses []bool, err error) {
 	return f.groupCommand("b", keys)
+}
+
+func (f *Filter) Check(key string) (response bool, err error) {
+	return f.singleCommand("c", key)
 }
 
 // Performs a multi command, checks for multiple keys in the filter
@@ -74,9 +99,11 @@ func (f *Filter) sendCommand(cmd string) error {
 	if err != nil {
 		return err
 	}
+
 	if resp != "Done" {
 		return errInvalidResponse(resp)
 	}
+
 	return nil
 }
 
@@ -105,9 +132,11 @@ func (f *Filter) Info() (map[string]string, error) {
 	if err := f.Conn.Send("info " + f.Name); err != nil {
 		return nil, err
 	}
+
 	info, err := f.Conn.responseBlockToMap()
 	if err != nil {
 		return nil, err
 	}
+
 	return info, nil
 }
