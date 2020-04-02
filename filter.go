@@ -30,25 +30,25 @@ func (f *Filter) getKey(key string) string {
 
 // Adds a new key to the filter. Returns True/False if the key was added
 func (f *Filter) Set(key string) (bool, error) {
-	cmd := "s " + f.Name + " " + f.getKey(key)
+	cmd := fmt.Sprintf("%s %s %s", FilterSetCmd, f.Name, f.getKey(key))
 
 	resp, err := f.Conn.SendAndReceive(cmd)
 	if err != nil {
 		return false, err
 	}
 
-	if resp == "Yes" || resp == "No" {
-		return resp == "Yes", nil
+	if resp == FilterYes || resp == FilterNo {
+		return resp == FilterYes, nil
 	}
 
 	return false, errInvalidResponse(resp)
 }
 
 func (f *Filter) groupCommand(kind string, keys []string) (rs []bool, e error) {
-	cmd := kind + " " + f.Name
+	cmd := fmt.Sprintf("%s %s", kind, f.Name)
 
 	for _, key := range keys {
-		cmd = cmd + " " + f.getKey(key)
+		cmd = fmt.Sprintf("%s %s", cmd, f.getKey(key))
 	}
 
 	resp, e := f.Conn.SendAndReceive(cmd)
@@ -56,25 +56,25 @@ func (f *Filter) groupCommand(kind string, keys []string) (rs []bool, e error) {
 		return rs, &BloomdError{ErrorString: e.Error()}
 	}
 
-	if strings.HasPrefix(resp, "Yes") || strings.HasPrefix(resp, "No") {
+	if strings.HasPrefix(resp, FilterYes) || strings.HasPrefix(resp, FilterNo) {
 		split := strings.Split(resp, " ")
 		for _, res := range split {
-			rs = append(rs, res == "Yes")
+			rs = append(rs, res == FilterYes)
 		}
 	}
 	return rs, nil
 }
 
 func (f *Filter) singleCommand(kind string, key string) (rs bool, err error) {
-	cmd := kind + " " + f.Name + " " + f.getKey(key)
+	cmd := fmt.Sprintf("%s %s %s", kind, f.Name, f.getKey(key))
 
 	resp, err := f.Conn.SendAndReceive(cmd)
 	if err != nil {
-		return rs, &BloomdError{ErrorString: e.Error()}
+		return rs, &BloomdError{ErrorString: err.Error()}
 	}
 
-	if strings.HasPrefix(resp, "Yes") || strings.HasPrefix(resp, "No") {
-		rs = resp == "Yes"
+	if strings.HasPrefix(resp, FilterYes) || strings.HasPrefix(resp, FilterNo) {
+		rs = resp == FilterYes
 	}
 
 	return rs, nil
@@ -82,25 +82,27 @@ func (f *Filter) singleCommand(kind string, key string) (rs bool, err error) {
 
 // Performs a bulk set command, adds multiple keys in the filter
 func (f *Filter) Bulk(keys []string) (responses []bool, err error) {
-	return f.groupCommand("b", keys)
+	return f.groupCommand(FilterBulkCmd, keys)
 }
 
 func (f *Filter) Check(key string) (response bool, err error) {
-	return f.singleCommand("c", key)
+	return f.singleCommand(FilterCheckCmd, key)
 }
 
 // Performs a multi command, checks for multiple keys in the filter
 func (f *Filter) Multi(keys []string) (responses []bool, err error) {
-	return f.groupCommand("m", keys)
+	return f.groupCommand(FilterMultiCmd, keys)
 }
 
 func (f *Filter) sendCommand(cmd string) error {
-	resp, err := f.Conn.SendAndReceive(cmd + " " + f.Name)
+	sendCmd := fmt.Sprintf("%s %s", cmd, f.Name)
+
+	resp, err := f.Conn.SendAndReceive(sendCmd)
 	if err != nil {
 		return err
 	}
 
-	if resp != "Done" {
+	if resp != RespDone {
 		return errInvalidResponse(resp)
 	}
 
@@ -109,27 +111,29 @@ func (f *Filter) sendCommand(cmd string) error {
 
 // Deletes the filter permanently from the server
 func (f *Filter) Drop() error {
-	return f.sendCommand("drop")
+	return f.sendCommand(FilterDropCmd)
 }
 
 // Closes the filter on the server
 func (f *Filter) Close() error {
-	return f.sendCommand("close")
+	return f.sendCommand(FilterCloseCmd)
 }
 
 // Clears the filter on the server
 func (f *Filter) Clear() error {
-	return f.sendCommand("clear")
+	return f.sendCommand(FilterClearCmd)
 }
 
 // Forces the filter to flush to disk
 func (f *Filter) Flush() error {
-	return f.sendCommand("flush")
+	return f.sendCommand(FlushCmd)
 }
 
 // Returns the info dictionary about the filter
 func (f *Filter) Info() (map[string]string, error) {
-	if err := f.Conn.Send("info " + f.Name); err != nil {
+	sendCmd := fmt.Sprintf("%s %s", InfoCmd, f.Name)
+
+	if err := f.Conn.Send(sendCmd); err != nil {
 		return nil, err
 	}
 

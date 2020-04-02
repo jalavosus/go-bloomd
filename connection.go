@@ -81,7 +81,7 @@ func (c *Connection) ReadBlock() (lines []string, err error) {
 	if err != nil {
 		return lines, err
 	}
-	if first != "START" {
+	if first != BlockStart {
 		return lines, &BloomdError{ErrorString: "Did not get block start START! Got '" + string(first) + "'!"}
 	}
 
@@ -90,7 +90,7 @@ func (c *Connection) ReadBlock() (lines []string, err error) {
 		if err != nil {
 			return lines, err
 		}
-		if line == "END" || line == "" {
+		if line == BlockEnd || line == "" {
 			break
 		}
 		lines = append(lines, string(line))

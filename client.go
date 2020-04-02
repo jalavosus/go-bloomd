@@ -13,6 +13,7 @@ Example:
 package bloomd
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -37,7 +38,7 @@ func (c *Client) CreateFilter(f *Filter) error {
 		return errInvalidCapacity
 	}
 
-	cmd := "create " + f.Name
+	cmd := CreateCmd + " " + f.Name
 	if f.Capacity > 0 {
 		cmd = cmd + " capacity=" + strconv.Itoa(f.Capacity)
 	}
@@ -56,7 +57,7 @@ func (c *Client) CreateFilter(f *Filter) error {
 	if err != nil {
 		return err
 	}
-	if resp != "Done" && resp != "Exists" {
+	if resp != RespDone && resp != RespExists {
 		return errInvalidResponse(resp)
 	}
 	f.Conn = c.Conn
@@ -64,17 +65,35 @@ func (c *Client) CreateFilter(f *Filter) error {
 	return nil
 }
 
-func (c *Client) GetFilter(name string) *Filter {
-	return &Filter{
+func (c *Client) GetFilter(name string) (*Filter, error) {
+	var filter *Filter
+
+	cmd := fmt.Sprintf("%s %s", InfoCmd, name)
+
+	err := c.Conn.Send(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	filterInfo, err := c.Conn.ReadBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	filter = &Filter{
 		Name:     name,
 		Conn:     c.Conn,
-		HashKeys: c.HashKeys,
+		Capacity: parseCapacity(filterInfo[0]),
+		Prob:     parseProbability(filterInfo[7]),
+		InMemory: parseInMemory(filterInfo[4]),
 	}
+
+	return filter, nil
 }
 
 // Lists all the available filters
 func (c *Client) ListFilters() (responses map[string]string, err error) {
-	err = c.Conn.Send("list")
+	err = c.Conn.Send(ListCmd)
 	if err != nil {
 		return
 	}
@@ -93,7 +112,7 @@ func (c *Client) ListFilters() (responses map[string]string, err error) {
 
 // Instructs server to flush to disk
 func (c *Client) Flush() error {
-	err := c.Conn.Send("flush")
+	err := c.Conn.Send(FlushCmd)
 	if err != nil {
 		return err
 	}
@@ -101,8 +120,34 @@ func (c *Client) Flush() error {
 	if err != nil {
 		return err
 	}
-	if resp != "DONE" {
+	if resp != Done {
 		return err
 	}
 	return nil
+}
+
+func parseCapacity(line string) int {
+	line = line[9:]
+	capacity, err := strconv.ParseInt(line, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+
+	return int(capacity)
+}
+
+func parseProbability(line string) float64 {
+	line = line[12:]
+	probability, err := strconv.ParseFloat(line, 64)
+	if err != nil {
+		panic(err)
+	}
+
+	return probability
+}
+
+func parseInMemory(line string) bool {
+	digit := string(line[len(line)-1])
+
+	return digit == "1"
 }
